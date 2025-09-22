@@ -1,0 +1,45 @@
+# Example 1: Custom Resource with OCI artifact reference
+apiVersion: example.com/v1
+kind: ArtifactReference
+metadata:
+  name: signed-helm-chart
+  namespace: default
+spec:
+  name: "my-application"
+  version: "1.0.0"
+  repository:
+    url: "oci://myregistry.azurecr.io/helm/my-app:1.0.0"
+  verification:
+    required: true
+    policy: "strict"
+
+---
+# Example 2: ConfigMap with artifact path
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: artifact-config
+  namespace: default
+data:
+  artifactPath: "oci://myregistry.azurecr.io/artifacts/policy:v1.0"
+  description: "Security policy artifact"
+
+---
+# Example 3: Flux HelmRelease (if using Flux)
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: my-app
+      version: "1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: my-repo
+        url: "oci://myregistry.azurecr.io/helm/my-app:1.0.0"
+  values:
+    replicaCount: 2

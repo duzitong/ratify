@@ -1,0 +1,48 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RatifyOCIArtifactVerification
+metadata:
+  name: verify-helm-charts
+spec:
+  match:
+    kinds:
+      - apiGroups: ["helm.toolkit.fluxcd.io"]
+        kinds: ["HelmRelease"]
+      - apiGroups: ["source.toolkit.fluxcd.io"] 
+        kinds: ["HelmRepository"]
+      - apiGroups: ["argoproj.io"]
+        kinds: ["Application"]
+  parameters:
+    ociPathField: "spec.chart.spec.sourceRef.url"  # For Flux HelmRelease
+    requireVerification: true
+    allowedArtifactTypes:
+      - "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+      - "application/vnd.oci.image.manifest.v1+json"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: RatifyOCIArtifactVerification
+metadata:
+  name: verify-oci-artifacts-in-configmaps
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["ConfigMap"]
+  parameters:
+    ociPathField: "data.artifactPath"  # ConfigMap with artifact path in data
+    requireVerification: true
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1  
+kind: RatifyOCIArtifactVerification
+metadata:
+  name: verify-custom-artifacts
+spec:
+  match:
+    kinds:
+      - apiGroups: ["example.com"]
+        kinds: ["ArtifactReference"]
+  parameters:
+    ociPathField: "spec.repository.url"  # Custom CR with nested OCI path
+    requireVerification: true
+    allowedArtifactTypes:
+      - "application/vnd.cncf.notary.signature"
+      - "application/vnd.in-toto+json"

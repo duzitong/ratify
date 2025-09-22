@@ -1,0 +1,139 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: ratifyociartifactverification
+spec:
+  crd:
+    spec:
+      names:
+        kind: RatifyOCIArtifactVerification
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            ociPathField:
+              type: string
+              description: "The field name in the CR that contains the OCI artifact path"
+            requireVerification:
+              type: boolean
+              description: "Whether verification is required for the OCI artifact"
+            allowedArtifactTypes:
+              type: array
+              items:
+                type: string
+              description: "List of allowed OCI artifact types"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package ratifyociartifactverification
+
+        # Get OCI artifact path from the CR
+        get_oci_path(obj, field_name) := path {
+          # Support nested field paths like "spec.chart.repository"
+          field_parts := split(field_name, ".")
+          path := walk_object(obj, field_parts)
+        }
+
+        # Walk through nested object fields
+        walk_object(obj, [field]) := obj[field] {
+          count(field) > 0
+        }
+
+        walk_object(obj, [head | tail]) := walk_object(obj[head], tail) {
+          count(tail) > 0
+        }
+
+        # Get OCI artifacts from the CR
+        remote_data := response {
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          oci_path != null
+          oci_path != ""
+          
+          # Convert single path to array for consistency
+          oci_paths := [oci_path]
+          response := external_data({"provider": "ratify-provider", "keys": oci_paths})
+        }
+
+        # Base Gatekeeper violation
+        violation[{"msg": msg}] {
+          general_violation[{"result": msg}]
+        }
+
+        # Check if OCI path field exists
+        general_violation[{"result": result}] {
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          
+          # Only check if requireVerification is true
+          input.parameters.requireVerification == true
+          
+          # Check if the field is missing or empty
+          any([
+            oci_path == null,
+            oci_path == "",
+            not oci_path
+          ])
+          
+          result := sprintf("Required OCI artifact path field '%s' is missing or empty", [oci_path_field])
+        }
+
+        # Check if there are any system errors from Ratify
+        general_violation[{"result": result}] {
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          oci_path != null
+          oci_path != ""
+          
+          err := remote_data.system_error
+          err != ""
+          result := sprintf("System error calling Ratify for OCI artifact '%s': %s", [oci_path, err])
+        }
+
+        # Check if there are errors for the OCI artifact
+        general_violation[{"result": result}] {
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          oci_path != null
+          oci_path != ""
+          
+          count(remote_data.errors) > 0
+          result := sprintf("Error validating OCI artifact '%s': %s", [oci_path, remote_data.errors])
+        }
+
+        # Check if the verification failed
+        general_violation[{"result": result}] {
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          oci_path != null
+          oci_path != ""
+          
+          subject_validation := remote_data.responses[_]
+          subject_validation[1].isSuccess == false
+          result := sprintf("Failed to verify OCI artifact '%s' at %s: %s, trace-id: %s", [
+            subject_validation[0], 
+            subject_validation[1].timestamp, 
+            subject_validation[1].artifactType,
+            subject_validation[1].traceID
+          ])
+        }
+
+        # Check if artifact type is allowed (if specified)
+        general_violation[{"result": result}] {
+          count(input.parameters.allowedArtifactTypes) > 0
+          oci_path_field := input.parameters.ociPathField
+          oci_path := get_oci_path(input.review.object, oci_path_field)
+          oci_path != null
+          oci_path != ""
+          
+          subject_validation := remote_data.responses[_]
+          subject_validation[1].isSuccess == true
+          artifact_type := subject_validation[1].artifactType
+          
+          not artifact_type in input.parameters.allowedArtifactTypes
+          result := sprintf("OCI artifact '%s' has disallowed type '%s'. Allowed types: %s", [
+            subject_validation[0],
+            artifact_type,
+            input.parameters.allowedArtifactTypes
+          ])
+        }

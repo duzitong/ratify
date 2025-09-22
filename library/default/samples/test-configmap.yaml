@@ -1,0 +1,10 @@
+# Test ConfigMap with OCI artifact reference
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-oci-artifact
+  namespace: default
+data:
+  artifactPath: "ghcr.io/duzitong/my-signed-artifact:latest"
+  description: "Test OCI artifact for Ratify verification"
+  artifactType: "application/vnd.cncf.notary.signature"
