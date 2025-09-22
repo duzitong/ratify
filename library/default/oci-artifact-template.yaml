@@ -34,43 +34,22 @@ spec:
           general_violation[{"result": msg}]
         }
 
-        # Check if there are any system errors from Ratify
+        # Check if there are any system errors
         general_violation[{"result": result}] {
-          input.review.object.kind == "ConfigMap"
-          oci_path := input.review.object.data.artifactPath
-          oci_path != null
-          oci_path != ""
-          
           err := remote_data.system_error
           err != ""
-          result := sprintf("System error calling Ratify for OCI artifact '%s': %s", [oci_path, err])
+          result := sprintf("System error calling external data provider: %s", [err])
         }
 
-        # Check if there are errors for the OCI artifact
+        # Check if there are errors for any of the images
         general_violation[{"result": result}] {
-          input.review.object.kind == "ConfigMap"
-          oci_path := input.review.object.data.artifactPath
-          oci_path != null
-          oci_path != ""
-          
           count(remote_data.errors) > 0
-          result := sprintf("Error validating OCI artifact '%s': %s", [oci_path, remote_data.errors])
+          result := sprintf("Error validating one or more images: %s", remote_data.errors)
         }
 
-        # Check if the verification failed
+        # Check if the success criteria is true
         general_violation[{"result": result}] {
-          input.review.object.kind == "ConfigMap"
-          oci_path := input.review.object.data.artifactPath
-          oci_path != null
-          oci_path != ""
-          
-          some i
-          subject_validation := remote_data.responses[i]
+          subject_validation := remote_data.responses[_]
           subject_validation[1].isSuccess == false
-          result := sprintf("Failed to verify OCI artifact '%s' at %s: %s, trace-id: %s", [
-            subject_validation[0], 
-            subject_validation[1].timestamp, 
-            subject_validation[1].artifactType,
-            subject_validation[1].traceID
-          ])
+          result := sprintf("Time=%s, failed to verify the artifact: %s, trace-id: %s", [subject_validation[1].timestamp, subject_validation[0], subject_validation[1].traceID])
         }
