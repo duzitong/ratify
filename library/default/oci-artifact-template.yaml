@@ -129,7 +129,12 @@ spec:
           subject_validation[1].isSuccess == true
           artifact_type := subject_validation[1].artifactType
           
-          not artifact_type in input.parameters.allowedArtifactTypes
+          # Check if artifact_type is NOT in allowed list
+          not allowed_type_found
+          allowed_type_found {
+            input.parameters.allowedArtifactTypes[_] == artifact_type
+          }
+          
           result := sprintf("OCI artifact '%s' has disallowed type '%s'. Allowed types: %s", [
             subject_validation[0],
             artifact_type,
