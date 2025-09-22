@@ -36,11 +36,11 @@ spec:
 
         # Walk through nested object fields
         walk_object(obj, [field]) := obj[field] {
-          count(field) > 0
+          count([field]) > 0
         }
 
         walk_object(obj, [head | tail]) := walk_object(obj[head], tail) {
-          count(tail) > 0
+          count([head | tail]) > 0
         }
 
         # Get OCI artifacts from the CR
@@ -107,7 +107,8 @@ spec:
           oci_path != null
           oci_path != ""
           
-          subject_validation := remote_data.responses[_]
+          some i
+          subject_validation := remote_data.responses[i]
           subject_validation[1].isSuccess == false
           result := sprintf("Failed to verify OCI artifact '%s' at %s: %s, trace-id: %s", [
             subject_validation[0], 
@@ -125,7 +126,8 @@ spec:
           oci_path != null
           oci_path != ""
           
-          subject_validation := remote_data.responses[_]
+          some j
+          subject_validation := remote_data.responses[j]
           subject_validation[1].isSuccess == true
           artifact_type := subject_validation[1].artifactType
           
@@ -141,5 +143,11 @@ spec:
 
         # Helper function to check if artifact type is not in allowed list
         not_in_allowed_list(artifact_type, allowed_types) {
-          not allowed_types[_] == artifact_type
+          not artifact_type_in_list(artifact_type, allowed_types)
+        }
+
+        # Helper to check if artifact type is in the allowed list
+        artifact_type_in_list(artifact_type, allowed_types) {
+          some k
+          allowed_types[k] == artifact_type
         }
