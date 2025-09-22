@@ -71,8 +71,7 @@ spec:
           # Check if the field is missing or empty
           any([
             oci_path == null,
-            oci_path == "",
-            not oci_path
+            oci_path == ""
           ])
           
           result := sprintf("Required OCI artifact path field '%s' is missing or empty", [oci_path_field])
