@@ -10,7 +10,11 @@ spec:
       validation:
         openAPIV3Schema:
           type: object
-          # No properties needed - just use fixed ConfigMap data.artifactPath
+          properties:
+            # Minimal properties section required by Azure Policy (though we don't use them)
+            dummy:
+              type: string
+              description: "Placeholder property for Azure Policy compatibility"
   targets:
     - target: admission.k8s.gatekeeper.sh
       rego: |
